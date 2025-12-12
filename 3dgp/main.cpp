@@ -87,6 +87,25 @@ void renderScene(mat4& matrixView, float time, float deltaTime)
 	m = matrixView;
 	m = translate(m, vec3(15.0f, 0, 0.0f));
 	m = rotate(m, radians(120.f), vec3(0.0f, 1.0f, 0.0f));
+
+	/// triangle
+	/*// clear screen and buffers
+	glClearColor(0.18f, 0.25f, 0.22f, 1.0f);   // deep grey background
+	glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);*/
+
+	/*// setup the view point
+	glMatrixMode(GL_MODELVIEW);
+	glLoadIdentity();
+	gluLookAt(0.0, 0.0, 10.0,
+		0.0, 0.0, 0.0,
+		0.0, 1.0, 0.0);*/
+
+	
+
+	// essential for double-buffering technique
+	//glutSwapBuffers();
+
+
 	// the GLUT objects require the Model View Matrix setup
 	glMatrixMode(GL_MODELVIEW);								// --- DEPRECATED
 	glLoadIdentity();										// --- DEPRECATED
@@ -113,6 +132,19 @@ void onRender()
 		_vel * deltaTime),		// animate camera motion (controlled by WASD keys)
 		-pitch, vec3(1, 0, 0))	// switch the pitch on
 		* matrixView;
+
+	// triangle + colour
+	glBegin(GL_TRIANGLES);
+	glColor4f(1.0, 0.0, 0.0, 1.0);
+	glVertex3f(-3.5, -0.5, 2.0);
+	
+	glColor4f(0.0, 1.0, 0.0, 1.0);
+	glVertex3f(-2.5, 0.0, 1.0);
+	
+	glColor4f(0.0, 0.0, 1.0, 1.0);
+	glVertex3f(-3.0, 0.5, 3.0);
+	
+	glEnd();
 
 	// render the scene objects
 	renderScene(matrixView, time, deltaTime);
