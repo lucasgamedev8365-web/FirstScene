@@ -1,24 +1,65 @@
-#include <iostream>
-#include <GL/glew.h>
-#include <3dgl/3dgl.h>
-#include <GL/glut.h>
-#include <GL/freeglut_ext.h>
+	#include <iostream>
+	#include <GL/glew.h>
+	#include <3dgl/3dgl.h>
+	#include <GL/glut.h>
+	#include <GL/freeglut_ext.h>
 
-// Include GLM core features
-#include "glm/glm.hpp"
-#include "glm/gtc/matrix_transform.hpp"
+	// Include GLM core features
+	#include "glm/glm.hpp"
+	#include "glm/gtc/matrix_transform.hpp"
 
-#pragma comment (lib, "glew32.lib")
+	#pragma comment (lib, "glew32.lib")
 
 using namespace std;
 using namespace _3dgl;
 using namespace glm;
 
+C3dglProgram program;
+
 // 3D models
-C3dglModel camera;
+C3dglModel chairAndTable, vase, chicken, room, lamp, sphere, teapot;
+
+//bitmaps
+C3dglBitmap bm;
+
+//texture buffers
+GLuint idTexWood, idTexNone;
 
 // The View Matrix
 mat4 matrixView;
+
+// Buffers
+unsigned buf, ind;
+
+// Vertex Data:
+float vertices[] = {
+  -4, 14,-4, 0, 4,-7, 4, 14,-4, 0, 4,-7, 0, 0, 0, 0, 4,-7,
+  -4, 14, 4, 0, 4, 7, 4, 14, 4, 0, 4, 7, 0, 0, 0, 0, 4, 7,
+  -4, 14,-4,-7, 4, 0,-4, 14, 4,-7, 4, 0, 0, 0, 0,-7, 4, 0,
+   4, 14,-4, 7, 4, 0, 4, 14, 4, 7, 4, 0, 0, 0, 0, 7, 4, 0,
+  -4, 14,-4, 0,-1, 0,-4, 14, 4, 0,-1, 0, 4, 14,-4, 0,-1, 0,
+   4, 14, 4, 0,-1, 0 };
+
+// Index Data
+unsigned indices[] = {
+  0, 1, 2,	  // side triangle
+  3, 4, 5,	  // side triangle
+  6, 7, 8,	  // side triangle
+  9, 10, 11,	  // side triangle
+  12, 13, 14,	  // one of the base triangles
+  13, 14, 15 };	  // the other one reuses two out of the three vertices
+
+
+//chicken rotation
+float rotation = 0;
+
+//red Value of the light
+float redValue = 0.5f;
+bool redGoingUp = true;
+
+//lamps on/off bool value
+bool lamp1On = true;
+bool lamp2On = true;
 
 // Camera & navigation
 float maxspeed = 4.f;	// camera max speed
@@ -28,10 +69,33 @@ float _fov = 60.f;		// field of view (zoom)
 
 bool init()
 {
+	//glut setup
+	glutSetVertexAttribCoord3(program.getAttribLocation("aVertex"));
+	glutSetVertexAttribNormal(program.getAttribLocation("aNormal"));
+
+	// Initialise Shaders
+	C3dglShader vertexShader;
+	C3dglShader fragmentShader;
+
+	if (!vertexShader.create(GL_VERTEX_SHADER)) return false;
+	if (!vertexShader.loadFromFile("shaders/basic.vert")) return false;
+	if (!vertexShader.compile()) return false;
+
+	if (!fragmentShader.create(GL_FRAGMENT_SHADER)) return false;
+	if (!fragmentShader.loadFromFile("shaders/basic.frag")) return false;
+	if (!fragmentShader.compile()) return false;
+
+	if (!program.create()) return false;
+	if (!program.attach(vertexShader)) return false;
+	if (!program.attach(fragmentShader)) return false;
+	if (!program.link()) return false;
+	if (!program.use(true)) return false;
+
 	// rendering states
 	glEnable(GL_DEPTH_TEST);	// depth test is necessary for most 3D scenes
 	glEnable(GL_NORMALIZE);		// normalization is needed by AssImp library models
-	glShadeModel(GL_SMOOTH);	// smooth shading mode is the default one; try GL_FLAT here!
+	glShadeModel(GL_FLAT);
+	//glShadeModel(GL_SMOOTH);	// smooth shading mode is the default one; try GL_FLAT here!
 	glPolygonMode(GL_FRONT_AND_BACK, GL_FILL);	// this is the default one; try GL_LINE!
 
 	// setup lighting
@@ -39,14 +103,57 @@ bool init()
 	glEnable(GL_LIGHT0);									// --- DEPRECATED
 
 	// load your 3D models here!
-	if (!camera.load("models\\camera.3ds")) return false;
+	if (!vase.load("models\\vase.obj")) return false;
+	if (!chicken.load("models\\chicken.obj")) return false;
+	if (!chairAndTable.load("models\\table.obj")) return false;
+	if (!room.load("models\\LivingRoomObj\\LivingRoom.obj")) return false;
+	if (!lamp.load("models\\lamp.obj")) return false;
+	if (!sphere.load("models\\sphere.obj")) return false;
+	if (!teapot.load("models\\utah_teapot_hires.obj")) return false;
+	room.loadMaterials("models\\LivingRoomObj\\");
+
+	// Generate 1 buffer name
+	glGenBuffers(1, &buf);
+	// Bind (activate) the buffer
+	glBindBuffer(GL_ARRAY_BUFFER, buf);
+	// Send data to the buffer
+	glBufferData(GL_ARRAY_BUFFER, sizeof(vertices), vertices, GL_STATIC_DRAW);
+
+	// GL_ARRAY_BUFFER – informs OGL that this is an array buffer
+	// GL_STATIC_DRAW – informs OGL that the buffer is written once, read many times
+
+	// prepare indices array
+	glGenBuffers(1, &ind);
+	glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, ind);
+	glBufferData(GL_ELEMENT_ARRAY_BUFFER, sizeof(indices), indices, GL_STATIC_DRAW);
+
+
+	// load textures/ bitmaps
+	bm.load("models/oak.bmp", GL_RGBA);
+	if (!bm.getBits()) return false;
+	// texture buffer
+	//wood
+	glActiveTexture(GL_TEXTURE0);
+	glGenTextures(1, &idTexWood);
+	glBindTexture(GL_TEXTURE_2D, idTexWood);
+	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
+	glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, bm.getWidth(), bm.getHeight(), 0, GL_RGBA,
+		GL_UNSIGNED_BYTE, bm.getBits());
+
+	// none (simple-white) texture
+	glGenTextures(1, &idTexNone);
+	glBindTexture(GL_TEXTURE_2D, idTexNone);
+	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
+	BYTE bytes[] = { 255, 255, 255 };
+	glTexImage2D(GL_TEXTURE_2D, 0, GL_RGB, 1, 1, 0, GL_BGR, GL_UNSIGNED_BYTE, &bytes);
+
 
 	// Initialise the View Matrix (initial position of the camera)
 	matrixView = rotate(mat4(1), radians(12.f), vec3(1, 0, 0));
 	matrixView *= lookAt(
-		vec3(0.0, 5.0, 10.0),
-		vec3(0.0, 5.0, 0.0),
-		vec3(0.0, 1.0, 0.0));
+		vec3(0.0f, 5.0f, 10.0f),
+		vec3(0.0f, 5.0f, 0.0f),
+		vec3(0.0f, 1.0f, 0.0f));
 
 	// setup the screen background colour
 	glClearColor(0.18f, 0.25f, 0.22f, 1.0f);   // deep grey background
@@ -64,53 +171,211 @@ bool init()
 
 void renderScene(mat4& matrixView, float time, float deltaTime)
 {
+	program.sendUniform("texture0", 0);
+
 	mat4 m;
 
+	// setup View Matrix
+	program.sendUniform("matrixView", matrixView);
+
+	//blank texture
+	glBindTexture(GL_TEXTURE_2D, idTexNone);
+
 	// setup materials - grey
-	GLfloat rgbaGrey[] = { 0.6f, 0.6f, 0.6f, 1.0f };		// --- DEPRECATED
-	glMaterialfv(GL_FRONT_AND_BACK, GL_DIFFUSE, rgbaGrey);	// --- DEPRECATED
-	glMaterialfv(GL_FRONT_AND_BACK, GL_AMBIENT, rgbaGrey);	// --- DEPRECATED
+	program.sendUniform("materialDiffuse", vec3(0.3f, 0.3f, 0.3f));
 
-	// camera
+	vec3 pulsatingRed = vec3(redValue, 0.0f, 0.0f);
+	// emissive light
+	if (lamp1On)
+	{
+		program.sendUniform("lightAmbient.color", pulsatingRed);
+		program.sendUniform("lightPoint1.diffuse", pulsatingRed);
+		program.sendUniform("lightPoint1.specular", pulsatingRed);
+	}
+	else
+	{
+		program.sendUniform("lightAmbient.color", vec3(0.0f, 0.0f, 0.0f)); // set quite dark
+		program.sendUniform("lightPoint1.diffuse", vec3(0.0f, 0.0f, 0.0f));
+		program.sendUniform("lightPoint1.specular", vec3(0.0f, 0.0f, 0.0f));
+	}
+
+	//point light setup
 	m = matrixView;
-	m = translate(m, vec3(-3.0f, 0, 0.0f));
-	m = rotate(m, radians(180.f), vec3(0.0f, 1.0f, 0.0f));
-	m = scale(m, vec3(0.04f, 0.04f, 0.04f));
-	camera.render(m);
+	m = translate(m, vec3(-13.8f, 10.3f, -6.85f));
+	m = scale(m, vec3(0.013f, 0.013f, 0.013f));
+	program.sendUniform("matrixModelView", m);
+	sphere.render(m);
+	program.sendUniform("lightPoint1.position", vec3(-13.8f, 10.3f, -6.85f));
 
-	// setup materials - blue
-	GLfloat rgbaBlue[] = { 0.2f, 0.2f, 0.8f, 1.0f };		// --- DEPRECATED
-	glMaterialfv(GL_FRONT_AND_BACK, GL_DIFFUSE, rgbaBlue);	// --- DEPRECATED
-	glMaterialfv(GL_FRONT_AND_BACK, GL_AMBIENT, rgbaBlue);	// --- DEPRECATED
+	if (lamp2On)
+	{
+		program.sendUniform("lightAmbient.color", vec3(0.0f, 0.0f, 1.0f));
+		program.sendUniform("lightPoint2.diffuse", vec3(0.0f, 0.0f, 1.0f));
+		program.sendUniform("lightPoint2.specular", vec3(0.0f, 0.0f, 1.0f));
+	}
+	else
+	{
+		program.sendUniform("lightAmbient.color", vec3(0.0f, 0.0f, 0.0f)); // set quite dark
+		program.sendUniform("lightPoint2.diffuse", vec3(0.0f, 0.0f, 0.0f));
+		program.sendUniform("lightPoint2.specular", vec3(0.0f, 0.0f, 0.0f));
+	}
 
-	// teapot
 	m = matrixView;
-	m = translate(m, vec3(15.0f, 0, 0.0f));
-	m = rotate(m, radians(120.f), vec3(0.0f, 1.0f, 0.0f));
+	m = translate(m, vec3(1.65f, 10.3f, 3.95f));
+	m = scale(m, vec3(0.013f, 0.013f, 0.013f));
+	program.sendUniform("matrixModelView", m);
+	sphere.render(m);
+	program.sendUniform("lightPoint2.position", vec3(1.65f, 10.3f, 3.95f));
 
-	/// triangle
-	/*// clear screen and buffers
-	glClearColor(0.18f, 0.25f, 0.22f, 1.0f);   // deep grey background
-	glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);*/
+	//specular light
+	program.sendUniform("materialSpecular", vec3(0.8f, 0.8f, 0.8f)); //brightness of the bright-spots
+	program.sendUniform("shininess",  50.0f); // lower levels of shininess means larger and sharper glare
 
-	/*// setup the view point
-	glMatrixMode(GL_MODELVIEW);
-	glLoadIdentity();
-	gluLookAt(0.0, 0.0, 10.0,
-		0.0, 0.0, 0.0,
-		0.0, 1.0, 0.0);*/
-
+	//directional light setup
+	program.sendUniform("lightDir.direction", vec3(1.0f, 1.0f, 0.1f));
+	program.sendUniform("lightDir.diffuse", vec3(0.5f, 0.5f, 0.5f));// dimmed white light
 	
+	//ambient light setup
+	program.sendUniform("lightAmbient.color", vec3(0.0f, 0.0f, 0.0f)); // set quite dark
+	program.sendUniform("materialAmbient", vec3(1.0f, 1.0f, 1.0f));
+
+	// setup materials - brown
+
+	//program.sendUniform("materialDiffuse", vec3(1.0f, 0.5f, 0.0f));
+
+	glBindTexture(GL_TEXTURE_2D, idTexWood);
+	//table
+	m = matrixView;
+	m = translate(m, vec3(-3.0f, -6.0f, 0.0f));
+	m = rotate(m, radians(180.f), vec3(0.0f, 1.0f, 0.0f));
+	m = scale(m, vec3(0.016f, 0.016f, 0.016f));
+	chairAndTable.render(2, m);
+
+	glBindTexture(GL_TEXTURE_2D, idTexWood);
+	// setup materials - white
+
+	program.sendUniform("materialDiffuse", vec3(1.0f, 1.0f, 1.0f));
+
+	//chair1 - furtherest middle from starting camera
+	m = matrixView;
+	m = translate(m, vec3(-3.0f, -6.0f, 0.0f));
+	m = rotate(m, radians(180.f), vec3(0.0f, 1.0f, 0.0f));
+	m = scale(m, vec3(0.016f, 0.016f, 0.016f));
+	chairAndTable.render(0, m);
+	chairAndTable.render(1, m);
+
+	//chair2 - right of the starting camera
+	m = matrixView;
+	m = translate(m, vec3(1.0f, -6.0f, 0.0f));
+	m = rotate(m, radians(90.f), vec3(0.0f, 1.0f, 0.0f));
+	m = scale(m, vec3(0.016f, 0.016f, 0.016f));
+	chairAndTable.render(0, m);
+	chairAndTable.render(1, m);
+
+	//chair3 - left of the starting camera
+	m = matrixView;
+	m = translate(m, vec3(-7.0f, -6.0f, 0.0f));
+	m = rotate(m, radians(270.f), vec3(0.0f, 1.0f, 0.0f));
+	m = scale(m, vec3(0.016f, 0.016f, 0.016f));
+	chairAndTable.render(0, m);
+	chairAndTable.render(1, m);
+
+	//chair4 - closest middle from starting camera
+	m = matrixView;
+	m = translate(m, vec3(-3.0f, -6.0f, 0.0f));
+	m = rotate(m, radians(0.0f), vec3(0.0f, 1.0f, 0.0f));
+	m = scale(m, vec3(0.016f, 0.016f, 0.016f));
+	chairAndTable.render(0, m);
+	chairAndTable.render(1, m);
+
+	//shininess of vase
+	program.sendUniform("shininess", 2.0f);
+
+	// setup materials - darker yellow
+
+	program.sendUniform("materialDiffuse", vec3(0.8f, 0.8f, 0.0f));
+
+	//lamp1 - top-left corner
+	glBindTexture(GL_TEXTURE_2D, idTexNone);
+	m = matrixView;
+	m = translate(m, vec3(-12.0f, 6.2f, -5.0f));
+	m = rotate(m, radians(-45.0f), vec3(0.0f, 1.0f, 0.0f));
+	m = scale(m, vec3(0.07f, 0.07f, 0.07f));
+	lamp.render(m);
+
+	//lamp2 - bottom-right
+	glBindTexture(GL_TEXTURE_2D, idTexNone);
+	m = matrixView;
+	m = translate(m, vec3(4.0f, 6.2f, 5.0f));
+	m = rotate(m, radians(-25.0f), vec3(0.0f, 1.0f, 0.0f));
+	m = scale(m, vec3(0.07f, 0.07f, 0.07f));
+	lamp.render(m);
+	
+	// setup materials - yellow
+
+	program.sendUniform("materialDiffuse", vec3(1.0f, 1.0f, 0.0f));
+
+	//chicken
+	m = matrixView;
+	m = translate(m, vec3(-5.0f, 7.43f, -5.0f));
+	m = rotate(m, radians(90.0f + rotation), vec3(0.0f, 1.0f, 0.0f));
+	m = scale(m, vec3(0.05f, 0.05f, 0.05f));
+	chicken.render(m);
+
+	//triangle
+	m = matrixView;
+	m = translate(m, vec3(-5.0f, 7.43f, -5.0f));
+	m = rotate(m, radians(90.0f + rotation), vec3(0.0f, 1.0f, 0.0f));
+	m = scale(m, vec3(0.05f, 0.05f, 0.05f));
+	// Bind (activate) the buffer
+	glBindBuffer(GL_ARRAY_BUFFER, buf);
+
+	// render nearly as usually
+	glEnableClientState(GL_VERTEX_ARRAY);
+	glEnableClientState(GL_NORMAL_ARRAY);
+	glVertexPointer(3, GL_FLOAT, 6 * sizeof(float), 0);
+	glNormalPointer(GL_FLOAT, 6 * sizeof(float), (void*)(3 * sizeof(float)));
+
+	// Bind (activate) index buffer
+	glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, ind);
+	// Draw triangles using 18 indices (unsigned int), starting at number 0
+	glDrawElements(GL_TRIANGLES, 18, GL_UNSIGNED_INT, 0);
+
+	glDisableClientState(GL_VERTEX_ARRAY);
+	glDisableClientState(GL_NORMAL_ARRAY);
+	
+	// setup materials - blue
+
+	program.sendUniform("materialDiffuse", vec3(0.0f, 0.2f, 0.8f));
+
+	// vase
+	m = matrixView;
+	m = translate(m, vec3(-3.0f, 6.15f, 0.0f));
+	m = rotate(m, radians(180.f), vec3(0.0f, 1.0f, 0.0f));
+	m = scale(m, vec3(0.4f, 0.4f, 0.4f));
+	vase.render(m);
+	
+	// setup materials - green
+
+	program.sendUniform("materialDiffuse", vec3(0.2f, 0.8f, 0.2f));
+
+	//teapot
+	m = matrixView;
+	m = translate(m, vec3(3.0f, 6.0f, 0.0f));
+	m = rotate(m, radians(180.f), vec3(0.0f, 1.0f, 0.0f));
+	m = scale(m, vec3(2.0f, 2.0f, 2.0f));
+	program.sendUniform("matrixModelView", m);
+	teapot.render(m);
 
 	// essential for double-buffering technique
 	//glutSwapBuffers();
-
 
 	// the GLUT objects require the Model View Matrix setup
 	glMatrixMode(GL_MODELVIEW);								// --- DEPRECATED
 	glLoadIdentity();										// --- DEPRECATED
 	glMultMatrixf((GLfloat*)&m);							// --- DEPRECATED
-	glutSolidTeapot(2.0);
+
+	
 }
 
 void onRender()
@@ -124,6 +389,14 @@ void onRender()
 	// clear screen and buffers
 	glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
 
+	//rotate chicken
+	rotation += 45 * deltaTime;
+	if (redValue > 1) redGoingUp = false;
+	else if (redValue < 0) redGoingUp = true;
+
+	if (redGoingUp) redValue += 1 * deltaTime;
+	else redValue -= 1 * deltaTime;
+
 	// setup the View Matrix (camera)
 	_vel = clamp(_vel + _acc * deltaTime, -vec3(maxspeed), vec3(maxspeed));
 	float pitch = getPitch(matrixView);
@@ -132,19 +405,6 @@ void onRender()
 		_vel * deltaTime),		// animate camera motion (controlled by WASD keys)
 		-pitch, vec3(1, 0, 0))	// switch the pitch on
 		* matrixView;
-
-	// triangle + colour
-	glBegin(GL_TRIANGLES);
-	glColor4f(1.0, 0.0, 0.0, 1.0);
-	glVertex3f(-3.5, -0.5, 2.0);
-	
-	glColor4f(0.0, 1.0, 0.0, 1.0);
-	glVertex3f(-2.5, 0.0, 1.0);
-	
-	glColor4f(0.0, 0.0, 1.0, 1.0);
-	glVertex3f(-3.0, 0.5, 3.0);
-	
-	glEnd();
 
 	// render the scene objects
 	renderScene(matrixView, time, deltaTime);
@@ -164,9 +424,7 @@ void onReshape(int w, int h)
 	mat4 matrixProjection = perspective(radians(_fov), ratio, 0.02f, 1000.f);
 
 	// Setup the Projection Matrix
-	glMatrixMode(GL_PROJECTION);							// --- DEPRECATED
-	glLoadIdentity();										// --- DEPRECATED
-	glMultMatrixf((GLfloat*)&matrixProjection);				// --- DEPRECATED
+	program.sendUniform("matrixProjection", matrixProjection);
 }
 
 // Handle WASDQE keys
@@ -180,6 +438,8 @@ void onKeyDown(unsigned char key, int x, int y)
 	case 'd': _acc.x = -accel; break;
 	case 'e': _acc.y = accel; break;
 	case 'q': _acc.y = -accel; break;
+	case '1': lamp1On = !lamp1On; redValue = 0.0f; break;
+	case '2': lamp2On = !lamp2On; break;
 	}
 }
 
