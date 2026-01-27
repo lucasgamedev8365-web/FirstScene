@@ -184,20 +184,11 @@ void renderScene(mat4& matrixView, float time, float deltaTime)
 	// setup materials - grey
 	program.sendUniform("materialDiffuse", vec3(0.3f, 0.3f, 0.3f));
 
-	vec3 pulsatingRed = vec3(redValue, 0.0f, 0.0f);
+	vec3 pulsatingRed = vec3(redValue * float(lamp1On), 0.0f, 0.0f);
 	// emissive light
-	if (lamp1On)
-	{
-		program.sendUniform("lightAmbient.color", pulsatingRed);
-		program.sendUniform("lightPoint1.diffuse", pulsatingRed);
-		program.sendUniform("lightPoint1.specular", pulsatingRed);
-	}
-	else
-	{
-		program.sendUniform("lightAmbient.color", vec3(0.0f, 0.0f, 0.0f)); // set quite dark
-		program.sendUniform("lightPoint1.diffuse", vec3(0.0f, 0.0f, 0.0f));
-		program.sendUniform("lightPoint1.specular", vec3(0.0f, 0.0f, 0.0f));
-	}
+	program.sendUniform("lightAmbient.color", pulsatingRed);
+	program.sendUniform("lightPoint1.diffuse", pulsatingRed);
+	program.sendUniform("lightPoint1.specular", pulsatingRed);
 
 	//point light setup
 	m = matrixView;
@@ -207,18 +198,9 @@ void renderScene(mat4& matrixView, float time, float deltaTime)
 	sphere.render(m);
 	program.sendUniform("lightPoint1.position", vec3(-13.8f, 10.3f, -6.85f));
 
-	if (lamp2On)
-	{
-		program.sendUniform("lightAmbient.color", vec3(0.0f, 0.0f, 1.0f));
-		program.sendUniform("lightPoint2.diffuse", vec3(0.0f, 0.0f, 1.0f));
-		program.sendUniform("lightPoint2.specular", vec3(0.0f, 0.0f, 1.0f));
-	}
-	else
-	{
-		program.sendUniform("lightAmbient.color", vec3(0.0f, 0.0f, 0.0f)); // set quite dark
-		program.sendUniform("lightPoint2.diffuse", vec3(0.0f, 0.0f, 0.0f));
-		program.sendUniform("lightPoint2.specular", vec3(0.0f, 0.0f, 0.0f));
-	}
+	program.sendUniform("lightAmbient.color", vec3(0.0f, 0.0f, float(lamp2On)));
+	program.sendUniform("lightPoint2.diffuse", vec3(0.0f, 0.0f, float(lamp2On)));
+	program.sendUniform("lightPoint2.specular", vec3(0.0f, 0.0f, float(lamp2On)));
 
 	m = matrixView;
 	m = translate(m, vec3(1.65f, 10.3f, 3.95f));
@@ -395,7 +377,7 @@ void onRender()
 	else if (redValue < 0) redGoingUp = true;
 
 	if (redGoingUp) redValue += 1 * deltaTime;
-	else redValue -= 1 * deltaTime;
+	else if (!redGoingUp) redValue -= 1 * deltaTime;
 
 	// setup the View Matrix (camera)
 	_vel = clamp(_vel + _acc * deltaTime, -vec3(maxspeed), vec3(maxspeed));
