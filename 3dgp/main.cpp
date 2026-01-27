@@ -31,6 +31,7 @@ mat4 matrixView;
 // Buffers
 unsigned buf, ind;
 
+//triangle vertices and normals
 // Vertex Data:
 float vertices[] = {
   -4, 14,-4, 0, 4,-7, 4, 14,-4, 0, 4,-7, 0, 0, 0, 0, 4,-7,
@@ -356,8 +357,6 @@ void renderScene(mat4& matrixView, float time, float deltaTime)
 	glMatrixMode(GL_MODELVIEW);								// --- DEPRECATED
 	glLoadIdentity();										// --- DEPRECATED
 	glMultMatrixf((GLfloat*)&m);							// --- DEPRECATED
-
-	
 }
 
 void onRender()
