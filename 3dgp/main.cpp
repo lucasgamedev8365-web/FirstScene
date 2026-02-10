@@ -3,6 +3,8 @@
 	#include <3dgl/3dgl.h>
 	#include <GL/glut.h>
 	#include <GL/freeglut_ext.h>
+#define _USE_MATH_DEFINES
+	#include <math.h>
 
 	// Include GLM core features
 	#include "glm/glm.hpp"
@@ -17,7 +19,7 @@ using namespace glm;
 C3dglProgram program;
 
 // 3D models
-C3dglModel chairAndTable, vase, chicken, room, lamp, sphere, teapot;
+C3dglModel chairAndTable, vase, chicken, room, lamp, sphere, teapot, ceilingLamp;
 
 //bitmaps
 C3dglBitmap bm;
@@ -59,8 +61,9 @@ float redValue = 0.5f;
 bool redGoingUp = true;
 
 //lamps on/off bool value
-bool lamp1On = true;
+bool lamp1On = true;	
 bool lamp2On = true;
+bool spotLightOn = true;
 
 // Camera & navigation
 float maxspeed = 4.f;	// camera max speed
@@ -111,6 +114,7 @@ bool init()
 	if (!lamp.load("models\\lamp.obj")) return false;
 	if (!sphere.load("models\\sphere.obj")) return false;
 	if (!teapot.load("models\\utah_teapot_hires.obj")) return false;
+	if (!ceilingLamp.load("models\\ceilinglamp.3ds")) return false;
 	room.loadMaterials("models\\LivingRoomObj\\");
 
 	// Generate 1 buffer name
@@ -152,8 +156,8 @@ bool init()
 	// Initialise the View Matrix (initial position of the camera)
 	matrixView = rotate(mat4(1), radians(12.f), vec3(1, 0, 0));
 	matrixView *= lookAt(
-		vec3(0.0f, 5.0f, 10.0f),
-		vec3(0.0f, 5.0f, 0.0f),
+		vec3(0.0f, 10.0f, 10.0f),
+		vec3(0.0f, 10.0f, 0.0f),
 		vec3(0.0f, 1.0f, 0.0f));
 
 	// setup the screen background colour
@@ -178,37 +182,6 @@ void renderScene(mat4& matrixView, float time, float deltaTime)
 
 	// setup View Matrix
 	program.sendUniform("matrixView", matrixView);
-
-	//blank texture
-	glBindTexture(GL_TEXTURE_2D, idTexNone);
-
-	// setup materials - grey
-	program.sendUniform("materialDiffuse", vec3(0.3f, 0.3f, 0.3f));
-
-	vec3 pulsatingRed = vec3(redValue * float(lamp1On), 0.0f, 0.0f);
-	// emissive light
-	program.sendUniform("lightAmbient.color", pulsatingRed);
-	program.sendUniform("lightPoint1.diffuse", pulsatingRed);
-	program.sendUniform("lightPoint1.specular", pulsatingRed);
-
-	//point light setup
-	m = matrixView;
-	m = translate(m, vec3(-13.8f, 10.3f, -6.85f));
-	m = scale(m, vec3(0.013f, 0.013f, 0.013f));
-	program.sendUniform("matrixModelView", m);
-	sphere.render(m);
-	program.sendUniform("lightPoint1.position", vec3(-13.8f, 10.3f, -6.85f));
-
-	program.sendUniform("lightAmbient.color", vec3(0.0f, 0.0f, float(lamp2On)));
-	program.sendUniform("lightPoint2.diffuse", vec3(0.0f, 0.0f, float(lamp2On)));
-	program.sendUniform("lightPoint2.specular", vec3(0.0f, 0.0f, float(lamp2On)));
-
-	m = matrixView;
-	m = translate(m, vec3(1.65f, 10.3f, 3.95f));
-	m = scale(m, vec3(0.013f, 0.013f, 0.013f));
-	program.sendUniform("matrixModelView", m);
-	sphere.render(m);
-	program.sendUniform("lightPoint2.position", vec3(1.65f, 10.3f, 3.95f));
 
 	//specular light
 	program.sendUniform("materialSpecular", vec3(0.8f, 0.8f, 0.8f)); //brightness of the bright-spots
@@ -327,6 +300,29 @@ void renderScene(mat4& matrixView, float time, float deltaTime)
 	glDisableClientState(GL_VERTEX_ARRAY);
 	glDisableClientState(GL_NORMAL_ARRAY);
 	
+	// Pendulum mechanics for ceiling lamp
+	static float alpha = 0; // angular position (swing)
+	static float omega = 0.7f; // angular velocity
+	deltaTime = glm::min(deltaTime, 0.2f); // remove time distortions (longer than 0.2s)
+	omega -= alpha * 0.05f * deltaTime; // Hooke's law: acceleration proportional to swing
+	alpha += omega * deltaTime * 50; // motion equation: swing += velocity * delta-time
+
+	// setup materials - black
+
+	program.sendUniform("materialDiffuse", vec3(0.1f, 0.1f, 0.01));
+
+	// Ceiling lamp
+	m = matrixView;
+	m = translate(m, vec3(-3.0f, 30.0f, 0.0f));
+	m = scale(m, vec3(2.0f, 2.0f, 2.0f));
+	m = rotate(m, radians(alpha), vec3(0.5, 0, 1));
+	m = translate(m, vec3(0, -9, 0));
+	mat4 m1 = m;
+	program.sendUniform("spotlight1.matrix", m);
+	m = translate(m, vec3(0, 9, 0));
+	m = scale(m, vec3(0.05f, 0.05f, 0.05f));
+	ceilingLamp.render(m);
+
 	// setup materials - blue
 
 	program.sendUniform("materialDiffuse", vec3(0.0f, 0.2f, 0.8f));
@@ -349,6 +345,55 @@ void renderScene(mat4& matrixView, float time, float deltaTime)
 	m = scale(m, vec3(2.0f, 2.0f, 2.0f));
 	program.sendUniform("matrixModelView", m);
 	teapot.render(m);
+
+	//blank texture
+	glBindTexture(GL_TEXTURE_2D, idTexNone);
+
+	// setup materials - grey
+	program.sendUniform("materialDiffuse", vec3(0.3f, 0.3f, 0.3f));
+
+	vec3 pulsatingRed = vec3(redValue * float(lamp1On), 0.0f, 0.0f);
+	// emissive light - point 1
+	program.sendUniform("lightAmbient.color", pulsatingRed);
+	program.sendUniform("lightPoint1.diffuse", pulsatingRed);
+	program.sendUniform("lightPoint1.specular", pulsatingRed);
+
+	//point light setup
+	m = matrixView;
+	m = translate(m, vec3(-13.8f, 10.3f, -6.85f));
+	m = scale(m, vec3(0.013f, 0.013f, 0.013f));
+	program.sendUniform("matrixModelView", m);
+	sphere.render(m);
+	program.sendUniform("lightPoint1.position", vec3(-13.8f, 10.3f, -6.85f));
+
+	//emissive light - point 2
+	program.sendUniform("lightAmbient.color", vec3(0.0f, 0.0f, float(lamp2On)));
+	program.sendUniform("lightPoint2.diffuse", vec3(0.0f, 0.0f, float(lamp2On)));
+	program.sendUniform("lightPoint2.specular", vec3(0.0f, 0.0f, float(lamp2On)));
+
+	m = matrixView;
+	m = translate(m, vec3(1.65f, 10.3f, 3.95f));
+	m = scale(m, vec3(0.013f, 0.013f, 0.013f));
+	program.sendUniform("matrixModelView", m);
+	sphere.render(m);
+	program.sendUniform("lightPoint2.position", vec3(1.65f, 10.3f, 3.95f));
+
+	vec3 spotLightColour = vec3(float(spotLightOn), float(spotLightOn), float(spotLightOn));
+	// spotlight set up
+	program.sendUniform("lightAmbient.color", spotLightColour); //emissive
+	program.sendUniform("spotlight1.diffuse", spotLightColour);
+	program.sendUniform("spotlight1.specular", spotLightColour);
+	program.sendUniform("spotlight1.cutoff", 0.4);
+	program.sendUniform("spotlight1.direction", vec3(0.0f, -1.0f, 0.0f));
+	program.sendUniform("spotlight1.attenuation", 5.0f);
+
+	// light bulb
+	m = m1;
+	m = translate(m, vec3(0.0f, 3.96f, 0.0f));
+	m = scale(m, vec3(0.004f, 0.004f, 0.004f));
+	program.sendUniform("matrixModelView", m);
+	sphere.render(m);
+	program.sendUniform("spotlight1.position", vec3(0.0f, 3.96f, 0.0f));
 
 	// essential for double-buffering technique
 	//glutSwapBuffers();
@@ -421,6 +466,7 @@ void onKeyDown(unsigned char key, int x, int y)
 	case 'q': _acc.y = -accel; break;
 	case '1': lamp1On = !lamp1On; redValue = 0.0f; break;
 	case '2': lamp2On = !lamp2On; break;
+	case '3': spotLightOn= !spotLightOn; break;
 	}
 }
 
