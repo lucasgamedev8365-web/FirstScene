@@ -24,6 +24,8 @@ C3dglModel chairAndTable, vase, chicken, room, lamp, sphere, teapot, ceilingLamp
 //bitmaps
 C3dglBitmap bm;
 
+GLuint idTexCube;	// global variable used for cube map
+
 //texture buffers
 GLuint idTexWood, idTexNone;
 
@@ -131,6 +133,32 @@ bool init()
 	glGenBuffers(1, &ind);
 	glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, ind);
 	glBufferData(GL_ELEMENT_ARRAY_BUFFER, sizeof(indices), indices, GL_STATIC_DRAW);
+	//static cube map
+
+	// load Cube Map
+	glActiveTexture(GL_TEXTURE1);
+	glGenTextures(1, &idTexCube);
+	glBindTexture(GL_TEXTURE_CUBE_MAP, idTexCube);
+	glTexParameteri(GL_TEXTURE_CUBE_MAP, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
+	glTexParameteri(GL_TEXTURE_CUBE_MAP, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
+	glTexParameteri(GL_TEXTURE_CUBE_MAP, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE); //GL_CLAMP_TO_EDGE guarantees seemless transistions between the six textures
+	glTexParameteri(GL_TEXTURE_CUBE_MAP, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
+	glTexParameteri(GL_TEXTURE_CUBE_MAP, GL_TEXTURE_WRAP_R, GL_CLAMP_TO_EDGE);
+
+	//loading bitmaps for cube map
+	C3dglBitmap bm;
+	bm.load("models\\cube\\lt.png", GL_RGBA); glTexImage2D(GL_TEXTURE_CUBE_MAP_POSITIVE_X, 0,
+		GL_RGBA, bm.getWidth(), abs(bm.getHeight()), 0, GL_RGBA, GL_UNSIGNED_BYTE, bm.getBits());
+	bm.load("models\\cube\\rt.png", GL_RGBA); glTexImage2D(GL_TEXTURE_CUBE_MAP_NEGATIVE_X, 0,
+		GL_RGBA, bm.getWidth(), abs(bm.getHeight()), 0, GL_RGBA, GL_UNSIGNED_BYTE, bm.getBits());
+	bm.load("models\\cube\\dn.png", GL_RGBA); glTexImage2D(GL_TEXTURE_CUBE_MAP_POSITIVE_Y, 0,
+		GL_RGBA, bm.getWidth(), abs(bm.getHeight()), 0, GL_RGBA, GL_UNSIGNED_BYTE, bm.getBits());
+	bm.load("models\\cube\\up.png", GL_RGBA); glTexImage2D(GL_TEXTURE_CUBE_MAP_NEGATIVE_Y, 0,
+		GL_RGBA, bm.getWidth(), abs(bm.getHeight()), 0, GL_RGBA, GL_UNSIGNED_BYTE, bm.getBits());
+	bm.load("models\\cube\\fd.png", GL_RGBA); glTexImage2D(GL_TEXTURE_CUBE_MAP_POSITIVE_Z, 0,
+		GL_RGBA, bm.getWidth(), abs(bm.getHeight()), 0, GL_RGBA, GL_UNSIGNED_BYTE, bm.getBits());
+	bm.load("models\\cube\\bk.png", GL_RGBA); glTexImage2D(GL_TEXTURE_CUBE_MAP_NEGATIVE_Z, 0,
+		GL_RGBA, bm.getWidth(), abs(bm.getHeight()), 0, GL_RGBA, GL_UNSIGNED_BYTE, bm.getBits());
 
 
 	// load textures/ bitmaps
@@ -177,6 +205,13 @@ bool init()
 void renderScene(mat4& matrixView, float time, float deltaTime)
 {
 	program.sendUniform("texture0", 0);
+	
+	//cube map setup?
+	program.sendUniform("textureCubeMap", 1);
+
+	//"dont do cube map"
+	glActiveTexture(GL_TEXTURE0);
+	program.sendUniform("reflectionPower", 0.0);
 
 	mat4 m;
 
@@ -327,12 +362,19 @@ void renderScene(mat4& matrixView, float time, float deltaTime)
 
 	program.sendUniform("materialDiffuse", vec3(0.0f, 0.2f, 0.8f));
 
+	glBindTexture(GL_TEXTURE_CUBE_MAP, idTexCube);
+	glActiveTexture(GL_TEXTURE1);
+	program.sendUniform("reflectionPower", 1.0);
+
 	// vase
 	m = matrixView;
 	m = translate(m, vec3(-3.0f, 6.15f, 0.0f));
 	m = rotate(m, radians(180.f), vec3(0.0f, 1.0f, 0.0f));
 	m = scale(m, vec3(0.4f, 0.4f, 0.4f));
 	vase.render(m);
+
+	glActiveTexture(GL_TEXTURE0);
+	program.sendUniform("reflectionPower", 0.0);
 	
 	// setup materials - green
 

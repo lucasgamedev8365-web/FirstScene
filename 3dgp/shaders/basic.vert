@@ -56,6 +56,7 @@ out vec4 color;
 out vec4 position;
 out vec3 normal;
 out vec2 texCoord0;
+out vec3 texCoordCubeMap; //cube map
 
 vec4 AmbientLight(AMBIENT light)
 {
@@ -86,6 +87,9 @@ void main(void)
 
 	// calculate texture coordinate
 	texCoord0 = aTexCoord;
+
+	//calculate cube map reflection vector
+	texCoordCubeMap = -inverse(mat3(matrixView)) * reflect(position.xyz, normal);
 
 	// calculate light
 	
