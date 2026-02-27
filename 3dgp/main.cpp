@@ -132,8 +132,8 @@ bool init()
 	// Send data to the buffer
 	glBufferData(GL_ARRAY_BUFFER, sizeof(vertices), vertices, GL_STATIC_DRAW);
 
-	// GL_ARRAY_BUFFER – informs OGL that this is an array buffer
-	// GL_STATIC_DRAW – informs OGL that the buffer is written once, read many times
+	// GL_ARRAY_BUFFER â€“ informs OGL that this is an array buffer
+	// GL_STATIC_DRAW â€“ informs OGL that the buffer is written once, read many times
 
 	// prepare indices array
 	glGenBuffers(1, &ind);
@@ -387,6 +387,7 @@ void renderScene(mat4& matrixView, float time, float deltaTime, float alpha)
 	m = scale(m, vec3(2.0f, 2.0f, 2.0f));
 	m = rotate(m, radians(alpha), vec3(0.5, 0, 1));
 	m = translate(m, vec3(0, -9, 0));
+
 	mat4 m1 = m;
 	program.sendUniform("spotlight1.matrix", m);
 	m = translate(m, vec3(0, 9, 0));
@@ -712,7 +713,7 @@ int main(int argc, char **argv)
 	C3dglLogger::log("Version: {}", (const char*)glGetString(GL_VERSION));
 	C3dglLogger::log("");
 
-	// init light and everything – not a GLUT or callback function!
+	// init light and everything â€“ not a GLUT or callback function!
 	if (!init())
 	{
 		C3dglLogger::log("Application failed to initialise\r\n");
