@@ -233,7 +233,7 @@ void cubeRender(mat4 matrixView, float time, float deltaTime, float alpha)
 	program.sendUniform("spotlight1.diffuse", spotLightColour);
 	program.sendUniform("spotlight1.specular", spotLightColour);
 	program.sendUniform("spotlight1.cutoff", 0.4);
-	program.sendUniform("spotlight1.direction",  mat3(m));
+	program.sendUniform("spotlight1.direction", vec3(0.0f, -1.0f, 0.0f));
 	program.sendUniform("spotlight1.attenuation", 5.0f);
 
 	m = translate(m, vec3(0.0f, 3.96f, 0.0f));
@@ -250,7 +250,7 @@ void teapotRender(mat4 matrixView, float time, float deltaTime, float alpha)
 	program.sendUniform("materialDiffuse", vec3(0.2f, 0.8f, 0.2f));
 
 	glBindTexture(GL_TEXTURE_CUBE_MAP, idTexTeapot);
-	glActiveTexture(GL_TEXTURE1);
+	glActiveTexture(GL_TEXTURE2);
 	program.sendUniform("reflectionPower", 0.2f);
 	program.sendUniform("textureCubeMap", 1);
 
@@ -351,7 +351,9 @@ void renderScene(mat4& matrixView, float time, float deltaTime, float alpha)
 	//ambient light setup
 	program.sendUniform("lightAmbient.color", vec3(0.0f, 0.0f, 0.0f)); // set quite dark
 	program.sendUniform("materialAmbient", vec3(1.0f, 1.0f, 1.0f));
+	// setup materials - white
 
+	program.sendUniform("materialDiffuse", vec3(1.0f, 1.0f, 1.0f));
 	// setup materials - brown
 
 	//program.sendUniform("materialDiffuse", vec3(1.0f, 0.5f, 0.0f));
@@ -507,7 +509,7 @@ void renderScene(mat4& matrixView, float time, float deltaTime, float alpha)
 	glMultMatrixf((GLfloat*)&m);							// --- DEPRECATED
 }
 
-void prepareCubeMap(float x, float y, float z, float time, float deltaTime, float alpha, GLuint CubeId)
+void prepareCubeMap(float x, float y, float z, float time, float deltaTime, float alpha)
 {
 	// Store the current viewport in a safe place
 	GLint viewport[4];
@@ -547,11 +549,65 @@ void prepareCubeMap(float x, float y, float z, float time, float deltaTime, floa
 		// render scene objects - all but the reflective one
 		glActiveTexture(GL_TEXTURE0);
 		renderScene(matrixView2, time, deltaTime, alpha);
+		teapotRender(matrixView2, time, deltaTime, alpha);
 		cubeRender(matrixView2, time, deltaTime, alpha);
 
 		// send the image to the cube texture
 		glActiveTexture(GL_TEXTURE1);
-		glBindTexture(GL_TEXTURE_CUBE_MAP, CubeId);
+		glBindTexture(GL_TEXTURE_CUBE_MAP, idTexCube);
+		glCopyTexImage2D(GL_TEXTURE_CUBE_MAP_POSITIVE_X + i, 0, GL_RGB8, 0, 0, 256, 256, 0);
+	}
+	// restore the matrixView, viewport and projection
+	void onReshape(int w, int h);
+	onReshape(w, h);
+}
+
+void prepareTeapotCubeMap(float x, float y, float z, float time, float deltaTime, float alpha)
+{
+	// Store the current viewport in a safe place
+	GLint viewport[4];
+	glGetIntegerv(GL_VIEWPORT, viewport);
+	int w = viewport[2];
+	int h = viewport[3];
+
+	// setup the viewport to 256x256, 90 degrees FoV (Field of View)
+	glViewport(0, 0, 256, 256);
+	program.sendUniform("matrixProjection", perspective(radians(90.f), 1.0f, 0.02f, 1000.0f));
+
+	// render environment 6 times
+	program.sendUniform("reflectionPower", 0.0);
+	for (int i = 0; i < 6; ++i)
+	{
+		// clear background
+		glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
+
+		// setup the camera
+		const GLfloat ROTATION[6][6] =
+		{	// at              up
+			{ -1.0, 0.0, 0.0,   0.0, 1.0, 0.0 },  // pos x
+			{ 1.0, 0.0, 0.0,  0.0, 1.0, 0.0 },  // neg x
+			{ 0.0, -1.0, 0.0,   0.0, 0.0, -1.0 },   // pos y
+			{ 0.0, 1.0, 0.0,  0.0, 0.0, 1.0 },  // neg y
+			{ 0.0, 0.0, -1.0,   0.0, 1.0, 0.0 },  // poz z
+			{ 0.0, 0.0, 1.0,  0.0, 1.0, 0.0 }   // neg z
+		};
+		mat4 matrixView2 = lookAt(
+			vec3(x, y, z),
+			vec3(x + ROTATION[i][0], y + ROTATION[i][1], z + ROTATION[i][2]),
+			vec3(ROTATION[i][3], ROTATION[i][4], ROTATION[i][5]));
+
+		// send the View Matrix
+		program.sendUniform("matrixView", matrixView);
+
+		// render scene objects - all but the reflective one
+		glActiveTexture(GL_TEXTURE0);
+		renderScene(matrixView2, time, deltaTime, alpha);
+		vaseRender(matrixView2, time, deltaTime, alpha);
+		cubeRender(matrixView2, time, deltaTime, alpha);
+
+		// send the image to the cube texture
+		glActiveTexture(GL_TEXTURE2);
+		glBindTexture(GL_TEXTURE_CUBE_MAP, idTexTeapot);
 		glCopyTexImage2D(GL_TEXTURE_CUBE_MAP_POSITIVE_X + i, 0, GL_RGB8, 0, 0, 256, 256, 0);
 	}
 	// restore the matrixView, viewport and projection
@@ -582,6 +638,9 @@ void onRender()
 	omega -= alpha * 0.05f * deltaTime; // Hooke's law: acceleration proportional to swing
 	alpha += omega * deltaTime * 50; // motion equation: swing += velocity * delta-time
 
+	prepareCubeMap(-3.0f, 10.0f, 0.0f, time, deltaTime, alpha);
+	//prepareTeapotCubeMap(3.0f, 8.0f, 0.0f, time, deltaTime, alpha);
+
 	// setup the View Matrix (camera)
 	_vel = clamp(_vel + _acc * deltaTime, -vec3(maxspeed), vec3(maxspeed));
 	float pitch = getPitch(matrixView);
@@ -596,13 +655,8 @@ void onRender()
 
 	// render the scene objects
 	renderScene(matrixView, time, deltaTime, alpha);
-
-	prepareCubeMap(-3.0f, 10.0f, 0.0f, time, deltaTime, alpha, idTexCube);
-	vaseRender(matrixView, time, deltaTime, alpha);
-
-	prepareCubeMap(3.0f, 8.0f, 0.0f, time, deltaTime, alpha, idTexTeapot);
 	teapotRender(matrixView, time, deltaTime, alpha);
-
+	vaseRender(matrixView, time, deltaTime, alpha);
 	
 
 	// essential for double-buffering technique
