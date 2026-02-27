@@ -57,7 +57,6 @@ unsigned indices[] = {
   12, 13, 14,	  // one of the base triangles
   13, 14, 15 };	  // the other one reuses two out of the three vertices
 
-
 //chicken rotation
 float rotation = 0;
 
@@ -213,15 +212,46 @@ bool init()
 	return true;
 }
 
-void vaseRender(mat4 matrixView, float time, float deltaTime)
+void cubeRender(mat4 matrixView, float time, float deltaTime, float alpha)
 {
+	program.sendUniform("lightAmbient.color", vec3(0.0f, 0.0f, 0.0f)); // set quite dark
+	mat4 m;
+	// Ceiling lamp
+	m = matrixView;
+	m = translate(m, vec3(-3.0f, 30.0f, 0.0f));
+	m = scale(m, vec3(2.0f, 2.0f, 2.0f));
+	m = rotate(m, radians(alpha), vec3(0.5, 0, 1));
+	m = translate(m, vec3(0, -9, 0));
+
+	m = translate(m, vec3(0, 9, 0));
+	m = scale(m, vec3(0.05f, 0.05f, 0.05f));
+	ceilingLamp.render(m);
+
+	vec3 spotLightColour = vec3(float(spotLightOn), float(spotLightOn), float(spotLightOn));
+	// spotlight set up
+	program.sendUniform("lightAmbient.color", spotLightColour); //emissive
+	program.sendUniform("spotlight1.diffuse", spotLightColour);
+	program.sendUniform("spotlight1.specular", spotLightColour);
+	program.sendUniform("spotlight1.cutoff", 0.4);
+	program.sendUniform("spotlight1.direction",  mat3(m));
+	program.sendUniform("spotlight1.attenuation", 5.0f);
+
+	m = translate(m, vec3(0.0f, 3.96f, 0.0f));
+	m = scale(m, vec3(0.004f, 0.004f, 0.004f));
+	program.sendUniform("matrixModelView", m);
+	sphere.render(m);
+}
+
+void vaseRender(mat4 matrixView, float time, float deltaTime, float alpha)
+{
+	program.sendUniform("lightAmbient.color", vec3(0.0f, 0.0f, 0.0f)); // set quite dark
 	// setup materials - blue
 
 	program.sendUniform("materialDiffuse", vec3(0, 0.1f, 0.3f));
 
 	glBindTexture(GL_TEXTURE_CUBE_MAP, idTexCube);
 	glActiveTexture(GL_TEXTURE1);
-	program.sendUniform("reflectionPower", 1.0f);
+	program.sendUniform("reflectionPower", 0.2f);
 	program.sendUniform("textureCubeMap", 1);
 
 	// vase
@@ -233,6 +263,40 @@ void vaseRender(mat4 matrixView, float time, float deltaTime)
 
 	glActiveTexture(GL_TEXTURE0);
 	program.sendUniform("reflectionPower", 0.0);
+
+	// setup materials - black
+
+	program.sendUniform("materialDiffuse", vec3(0.1f, 0.1f, 0.01));
+
+	// Ceiling lamp
+	m = matrixView;
+	m = translate(m, vec3(-3.0f, 30.0f, 0.0f));
+	m = scale(m, vec3(2.0f, 2.0f, 2.0f));
+	m = rotate(m, radians(alpha), vec3(0.5, 0, 1));
+	m = translate(m, vec3(0, -9, 0));
+
+	mat4 m1 = m;
+	program.sendUniform("spotlight1.matrix", m);
+	m = translate(m, vec3(0, 9, 0));
+	m = scale(m, vec3(0.05f, 0.05f, 0.05f));
+	ceilingLamp.render(m);
+
+	vec3 spotLightColour = vec3(float(spotLightOn), float(spotLightOn), float(spotLightOn));
+	// spotlight set up
+	program.sendUniform("lightAmbient.color", spotLightColour); //emissive
+	program.sendUniform("spotlight1.diffuse", spotLightColour);
+	program.sendUniform("spotlight1.specular", spotLightColour);
+	program.sendUniform("spotlight1.cutoff", 0.4);
+	program.sendUniform("spotlight1.direction", vec3(0.0f, -1.0f, 0.0f));
+	program.sendUniform("spotlight1.attenuation", 5.0f);
+
+	// light bulb
+	m = m1;
+	m = translate(m, vec3(0.0f, 3.96f, 0.0f));
+	m = scale(m, vec3(0.004f, 0.004f, 0.004f));
+	program.sendUniform("matrixModelView", m);
+	sphere.render(m);
+	program.sendUniform("spotlight1.position", vec3(0.0f, 3.96f, 0.0f));
 }
 
 void renderScene(mat4& matrixView, float time, float deltaTime, float alpha)
@@ -377,23 +441,6 @@ void renderScene(mat4& matrixView, float time, float deltaTime, float alpha)
 	glDisableClientState(GL_VERTEX_ARRAY);
 	glDisableClientState(GL_NORMAL_ARRAY);
 
-	// setup materials - black
-
-	program.sendUniform("materialDiffuse", vec3(0.1f, 0.1f, 0.01));
-
-	// Ceiling lamp
-	m = matrixView;
-	m = translate(m, vec3(-3.0f, 30.0f, 0.0f));
-	m = scale(m, vec3(2.0f, 2.0f, 2.0f));
-	m = rotate(m, radians(alpha), vec3(0.5, 0, 1));
-	m = translate(m, vec3(0, -9, 0));
-
-	mat4 m1 = m;
-	program.sendUniform("spotlight1.matrix", m);
-	m = translate(m, vec3(0, 9, 0));
-	m = scale(m, vec3(0.05f, 0.05f, 0.05f));
-	ceilingLamp.render(m);
-
 	// setup materials - green
 
 	program.sendUniform("materialDiffuse", vec3(0.2f, 0.8f, 0.2f));
@@ -438,23 +485,6 @@ void renderScene(mat4& matrixView, float time, float deltaTime, float alpha)
 	sphere.render(m);
 	program.sendUniform("lightPoint2.position", vec3(1.65f, 10.3f, 3.95f));
 
-	vec3 spotLightColour = vec3(float(spotLightOn), float(spotLightOn), float(spotLightOn));
-	// spotlight set up
-	program.sendUniform("lightAmbient.color", spotLightColour); //emissive
-	program.sendUniform("spotlight1.diffuse", spotLightColour);
-	program.sendUniform("spotlight1.specular", spotLightColour);
-	program.sendUniform("spotlight1.cutoff", 0.4);
-	program.sendUniform("spotlight1.direction", vec3(0.0f, -1.0f, 0.0f));
-	program.sendUniform("spotlight1.attenuation", 5.0f);
-
-	// light bulb
-	m = m1;
-	m = translate(m, vec3(0.0f, 3.96f, 0.0f));
-	m = scale(m, vec3(0.004f, 0.004f, 0.004f));
-	program.sendUniform("matrixModelView", m);
-	sphere.render(m);
-	program.sendUniform("spotlight1.position", vec3(0.0f, 3.96f, 0.0f));
-
 	// essential for double-buffering technique
 	//glutSwapBuffers();
 
@@ -486,12 +516,12 @@ void prepareCubeMap(float x, float y, float z, float time, float deltaTime, floa
 		// setup the camera
 		const GLfloat ROTATION[6][6] =
 		{	// at              up
-			{ 1.0, 0.0, 0.0,   0.0, -1.0, 0.0 },  // pos x
-			{ -1.0, 0.0, 0.0,  0.0, -1.0, 0.0 },  // neg x
-			{ 0.0, 1.0, 0.0,   0.0, 0.0, 1.0 },   // pos y
-			{ 0.0, -1.0, 0.0,  0.0, 0.0, -1.0 },  // neg y
-			{ 0.0, 0.0, 1.0,   0.0, -1.0, 0.0 },  // poz z
-			{ 0.0, 0.0, -1.0,  0.0, -1.0, 0.0 }   // neg z
+			{ -1.0, 0.0, 0.0,   0.0, 1.0, 0.0 },  // pos x
+			{ 1.0, 0.0, 0.0,  0.0, 1.0, 0.0 },  // neg x
+			{ 0.0, -1.0, 0.0,   0.0, 0.0, -1.0 },   // pos y
+			{ 0.0, 1.0, 0.0,  0.0, 0.0, 1.0 },  // neg y
+			{ 0.0, 0.0, -1.0,   0.0, 1.0, 0.0 },  // poz z
+			{ 0.0, 0.0, 1.0,  0.0, 1.0, 0.0 }   // neg z
 		};
 		mat4 matrixView2 = lookAt(
 			vec3(x, y, z),
@@ -504,6 +534,7 @@ void prepareCubeMap(float x, float y, float z, float time, float deltaTime, floa
 		// render scene objects - all but the reflective one
 		glActiveTexture(GL_TEXTURE0);
 		renderScene(matrixView2, time, deltaTime, alpha);
+		cubeRender(matrixView2, time, deltaTime, alpha);
 
 		// send the image to the cube texture
 		glActiveTexture(GL_TEXTURE1);
@@ -521,7 +552,7 @@ void onRender()
 	static float prev = 0;
 	float time = glutGet(GLUT_ELAPSED_TIME) * 0.001f;	// time since start in seconds
 	float deltaTime = time - prev;						// time since last frame
-	prev = time;										// framerate is 1/deltaTime
+	prev = time;  // framerate is 1/deltaTime
 
 	//rotate chicken
 	rotation += 45 * deltaTime;
@@ -538,6 +569,8 @@ void onRender()
 	omega -= alpha * 0.05f * deltaTime; // Hooke's law: acceleration proportional to swing
 	alpha += omega * deltaTime * 50; // motion equation: swing += velocity * delta-time
 
+	prepareCubeMap(-3.0f, 10.0f, 0.0f, time, deltaTime, alpha);
+
 	// setup the View Matrix (camera)
 	_vel = clamp(_vel + _acc * deltaTime, -vec3(maxspeed), vec3(maxspeed));
 	float pitch = getPitch(matrixView);
@@ -547,15 +580,13 @@ void onRender()
 		-pitch, vec3(1, 0, 0))	// switch the pitch on
 		* matrixView;
 
-	prepareCubeMap(-3.0f, 10.0f, 0.0f, time, deltaTime, alpha);
-
 	// clear screen and buffers
 	glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
 
 	// render the scene objects
 	renderScene(matrixView, time, deltaTime, alpha);
 
-	vaseRender(matrixView, time, deltaTime);
+	vaseRender(matrixView, time, deltaTime, alpha);
 
 	// essential for double-buffering technique
 	glutSwapBuffers();
