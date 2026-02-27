@@ -55,10 +55,8 @@ uniform float shininess;
 in vec3 aVertex;
 in vec3 aNormal;
 in vec2 aTexCoord;
-//in vec3 aTangent;
-//in vec3 aBiTangent;
-in vec4 aBoneId;		// Bone Ids
-in vec4 aBoneWeight;	// Bone Weights
+in ivec4 aBoneId;
+in vec4 aBoneWeight;
 
 out vec4 color;
 out vec4 position;
@@ -93,10 +91,10 @@ void main(void)
 	}
 	else
 	{
-		matrixBone = (bones[int(aBoneId[0])] * aBoneWeight[0] +
-					  bones[int(aBoneId[1])] * aBoneWeight[1] +
-					  bones[int(aBoneId[2])] * aBoneWeight[2] +
-					  bones[int(aBoneId[3])] * aBoneWeight[3]);
+		matrixBone = (bones[aBoneId[0]] * aBoneWeight[0] +
+					  bones[aBoneId[1]] * aBoneWeight[1] +
+					  bones[aBoneId[2]] * aBoneWeight[2] +
+					  bones[aBoneId[3]] * aBoneWeight[3]);
 	}
 		
 
@@ -111,7 +109,7 @@ void main(void)
 	texCoord0 = aTexCoord;
 
 	//calculate cube map reflection vector
-	texCoordCubeMap = -inverse(mat3(matrixView)) * reflect(position.xyz, normal);
+	texCoordCubeMap = -inverse(mat3(matrixView)) * mix(reflect(position.xyz, normal.xyz), normal.xyz, 0.2);
 
 	// calculate light
 	

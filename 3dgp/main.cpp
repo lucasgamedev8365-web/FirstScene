@@ -26,6 +26,9 @@ C3dglBitmap bm;
 
 GLuint idTexCube;	// global variable used for cube map
 
+C3dglModel player;			// the boy's name is Aj
+C3dglModel idle;	// additional animations (skinless)
+
 //texture buffers
 GLuint idTexWood, idTexNone;
 
@@ -75,6 +78,7 @@ float _fov = 60.f;		// field of view (zoom)
 
 bool init()
 {
+
 	//glut setup
 	glutSetVertexAttribCoord3(program.getAttribLocation("aVertex"));
 	glutSetVertexAttribNormal(program.getAttribLocation("aNormal"));
@@ -119,6 +123,8 @@ bool init()
 	if (!ceilingLamp.load("models\\ceilinglamp.3ds")) return false;
 	room.loadMaterials("models\\LivingRoomObj\\");
 
+
+
 	// Generate 1 buffer name
 	glGenBuffers(1, &buf);
 	// Bind (activate) the buffer
@@ -126,8 +132,8 @@ bool init()
 	// Send data to the buffer
 	glBufferData(GL_ARRAY_BUFFER, sizeof(vertices), vertices, GL_STATIC_DRAW);
 
-	// GL_ARRAY_BUFFER – informs OGL that this is an array buffer
-	// GL_STATIC_DRAW – informs OGL that the buffer is written once, read many times
+	// GL_ARRAY_BUFFER â€“ informs OGL that this is an array buffer
+	// GL_STATIC_DRAW â€“ informs OGL that the buffer is written once, read many times
 
 	// prepare indices array
 	glGenBuffers(1, &ind);
@@ -160,6 +166,11 @@ bool init()
 	bm.load("models\\cube\\bk.png", GL_RGBA); glTexImage2D(GL_TEXTURE_CUBE_MAP_NEGATIVE_Z, 0,
 		GL_RGBA, bm.getWidth(), abs(bm.getHeight()), 0, GL_RGBA, GL_UNSIGNED_BYTE, bm.getBits());
 
+	idle.load("models\\standing idle 01.fbx");
+
+	player.load("models\\Erika Archer.fbx");
+	player.loadMaterials("models\\");
+	player.loadAnimations(&idle);	// idle animation for female archer Erika
 
 	// load textures/ bitmaps
 	bm.load("models/oak.bmp", GL_RGBA);
@@ -202,18 +213,29 @@ bool init()
 	return true;
 }
 
-void static renderVase(mat4 matrixView, float time, float deltaTime)
+void vaseRender(mat4 matrixView, float time, float deltaTime)
 {
-	mat4 m;
+	// setup materials - blue
+
+	program.sendUniform("materialDiffuse", vec3(0, 0.1f, 0.3f));
+
+	glBindTexture(GL_TEXTURE_CUBE_MAP, idTexCube);
+	glActiveTexture(GL_TEXTURE1);
+	program.sendUniform("reflectionPower", 1.0f);
+	program.sendUniform("textureCubeMap", 1);
+
 	// vase
-	m = matrixView;
+	mat4 m = matrixView;
 	m = translate(m, vec3(-3.0f, 6.15f, 0.0f));
 	m = rotate(m, radians(180.f), vec3(0.0f, 1.0f, 0.0f));
 	m = scale(m, vec3(0.4f, 0.4f, 0.4f));
 	vase.render(m);
+
+	glActiveTexture(GL_TEXTURE0);
+	program.sendUniform("reflectionPower", 0.0);
 }
 
-void renderScene(mat4& matrixView, float time, float deltaTime)
+void renderScene(mat4& matrixView, float time, float deltaTime, float alpha)
 {
 	program.sendUniform("texture0", 0);
 	
@@ -313,6 +335,15 @@ void renderScene(mat4& matrixView, float time, float deltaTime)
 	m = scale(m, vec3(0.07f, 0.07f, 0.07f));
 	lamp.render(m);
 	
+	std::vector<mat4> transforms;
+	player.getAnimData(0, time, transforms);
+	program.sendUniform("bones", &transforms[0], transforms.size());
+	m = matrixView;
+	m = translate(m, vec3(5.2, -6.0f, -15.0f));
+	m = scale(m, vec3(0.12f, 0.12f, 0.12f));
+	player.render(m);
+
+
 	// setup materials - yellow
 
 	program.sendUniform("materialDiffuse", vec3(1.0f, 1.0f, 0.0f));
@@ -345,13 +376,6 @@ void renderScene(mat4& matrixView, float time, float deltaTime)
 
 	glDisableClientState(GL_VERTEX_ARRAY);
 	glDisableClientState(GL_NORMAL_ARRAY);
-	
-	// Pendulum mechanics for ceiling lamp
-	static float alpha = 0; // angular position (swing)
-	static float omega = 0.7f; // angular velocity
-	deltaTime = glm::min(deltaTime, 0.2f); // remove time distortions (longer than 0.2s)
-	omega -= alpha * 0.05f * deltaTime; // Hooke's law: acceleration proportional to swing
-	alpha += omega * deltaTime * 50; // motion equation: swing += velocity * delta-time
 
 	// setup materials - black
 
@@ -370,19 +394,6 @@ void renderScene(mat4& matrixView, float time, float deltaTime)
 	m = scale(m, vec3(0.05f, 0.05f, 0.05f));
 	ceilingLamp.render(m);
 
-	// setup materials - blue
-	program.sendUniform("materialDiffuse", vec3(0.0f, 0.2f, 0.8f));
-
-	glBindTexture(GL_TEXTURE_CUBE_MAP, idTexCube);
-	glActiveTexture(GL_TEXTURE1);
-	program.sendUniform("reflectionPower", 1.0);
-	program.sendUniform("textureCubeMap", 1);
-	
-	//renderVase(matrixView, time, deltaTime);
-
-	glActiveTexture(GL_TEXTURE0);
-	program.sendUniform("reflectionPower", 0.0);
-	
 	// setup materials - green
 
 	program.sendUniform("materialDiffuse", vec3(0.2f, 0.8f, 0.2f));
@@ -453,8 +464,7 @@ void renderScene(mat4& matrixView, float time, float deltaTime)
 	glMultMatrixf((GLfloat*)&m);							// --- DEPRECATED
 }
 
-
-void prepareCubeMap(float x, float y, float z, float time, float deltaTime)
+void prepareCubeMap(float x, float y, float z, float time, float deltaTime, float alpha)
 {
 	// Store the current viewport in a safe place
 	GLint viewport[4];
@@ -493,7 +503,7 @@ void prepareCubeMap(float x, float y, float z, float time, float deltaTime)
 
 		// render scene objects - all but the reflective one
 		glActiveTexture(GL_TEXTURE0);
-		renderScene(matrixView2, time, deltaTime);
+		renderScene(matrixView2, time, deltaTime, alpha);
 
 		// send the image to the cube texture
 		glActiveTexture(GL_TEXTURE1);
@@ -513,9 +523,6 @@ void onRender()
 	float deltaTime = time - prev;						// time since last frame
 	prev = time;										// framerate is 1/deltaTime
 
-	// clear screen and buffers
-	glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
-
 	//rotate chicken
 	rotation += 45 * deltaTime;
 	if (redValue > 1) redGoingUp = false;
@@ -523,6 +530,13 @@ void onRender()
 
 	if (redGoingUp) redValue += 1 * deltaTime;
 	else if (!redGoingUp) redValue -= 1 * deltaTime;
+
+	// Pendulum mechanics for ceiling lamp
+	static float alpha = 0; // angular position (swing)
+	static float omega = 0.7f; // angular velocity
+	deltaTime = glm::min(deltaTime, 0.2f); // remove time distortions (longer than 0.2s)
+	omega -= alpha * 0.05f * deltaTime; // Hooke's law: acceleration proportional to swing
+	alpha += omega * deltaTime * 50; // motion equation: swing += velocity * delta-time
 
 	// setup the View Matrix (camera)
 	_vel = clamp(_vel + _acc * deltaTime, -vec3(maxspeed), vec3(maxspeed));
@@ -533,10 +547,15 @@ void onRender()
 		-pitch, vec3(1, 0, 0))	// switch the pitch on
 		* matrixView;
 
-	prepareCubeMap(-3.0f, 6.15f, 0.0f, time, deltaTime);
+	prepareCubeMap(-3.0f, 10.0f, 0.0f, time, deltaTime, alpha);
+
+	// clear screen and buffers
+	glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
 
 	// render the scene objects
-	renderScene(matrixView, time, deltaTime);
+	renderScene(matrixView, time, deltaTime, alpha);
+
+	vaseRender(matrixView, time, deltaTime);
 
 	// essential for double-buffering technique
 	glutSwapBuffers();
@@ -694,7 +713,7 @@ int main(int argc, char **argv)
 	C3dglLogger::log("Version: {}", (const char*)glGetString(GL_VERSION));
 	C3dglLogger::log("");
 
-	// init light and everything – not a GLUT or callback function!
+	// init light and everything â€“ not a GLUT or callback function!
 	if (!init())
 	{
 		C3dglLogger::log("Application failed to initialise\r\n");
