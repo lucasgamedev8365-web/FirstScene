@@ -24,7 +24,7 @@ C3dglModel chairAndTable, vase, chicken, room, lamp, sphere, teapot, ceilingLamp
 //bitmaps
 C3dglBitmap bm;
 
-GLuint idTexCube;	// global variable used for cube map
+GLuint idTexCube, idTexTeapot;	// global variable used for cube map
 
 C3dglModel player;			// the boy's name is Aj
 C3dglModel idle;	// additional animations (skinless)
@@ -242,6 +242,31 @@ void cubeRender(mat4 matrixView, float time, float deltaTime, float alpha)
 	sphere.render(m);
 }
 
+void teapotRender(mat4 matrixView, float time, float deltaTime, float alpha)
+{
+	program.sendUniform("lightAmbient.color", vec3(0.0f, 0.0f, 0.0f)); // set quite dark
+	// setup materials - green
+
+	program.sendUniform("materialDiffuse", vec3(0.2f, 0.8f, 0.2f));
+
+	glBindTexture(GL_TEXTURE_CUBE_MAP, idTexTeapot);
+	glActiveTexture(GL_TEXTURE1);
+	program.sendUniform("reflectionPower", 0.2f);
+	program.sendUniform("textureCubeMap", 1);
+
+	//teapot
+	mat4 m = matrixView;
+	m = translate(m, vec3(3.0f, 6.0f, 0.0f));
+	m = rotate(m, radians(180.f), vec3(0.0f, 1.0f, 0.0f));
+	m = scale(m, vec3(2.0f, 2.0f, 2.0f));
+	program.sendUniform("matrixModelView", m);
+	teapot.render(m);
+
+	glActiveTexture(GL_TEXTURE0);
+	program.sendUniform("reflectionPower", 0.0);
+
+}
+
 void vaseRender(mat4 matrixView, float time, float deltaTime, float alpha)
 {
 	program.sendUniform("lightAmbient.color", vec3(0.0f, 0.0f, 0.0f)); // set quite dark
@@ -257,7 +282,7 @@ void vaseRender(mat4 matrixView, float time, float deltaTime, float alpha)
 	// vase
 	mat4 m = matrixView;
 	m = translate(m, vec3(-3.0f, 6.15f, 0.0f));
-	m = rotate(m, radians(180.f), vec3(0.0f, 1.0f, 0.0f));
+	m = rotate(m, radians(180.f), vec3(0.0f, 2.0f, 0.0f));
 	m = scale(m, vec3(0.4f, 0.4f, 0.4f));
 	vase.render(m);
 
@@ -441,18 +466,6 @@ void renderScene(mat4& matrixView, float time, float deltaTime, float alpha)
 	glDisableClientState(GL_VERTEX_ARRAY);
 	glDisableClientState(GL_NORMAL_ARRAY);
 
-	// setup materials - green
-
-	program.sendUniform("materialDiffuse", vec3(0.2f, 0.8f, 0.2f));
-
-	//teapot
-	m = matrixView;
-	m = translate(m, vec3(3.0f, 6.0f, 0.0f));
-	m = rotate(m, radians(180.f), vec3(0.0f, 1.0f, 0.0f));
-	m = scale(m, vec3(2.0f, 2.0f, 2.0f));
-	program.sendUniform("matrixModelView", m);
-	teapot.render(m);
-
 	//blank texture
 	glBindTexture(GL_TEXTURE_2D, idTexNone);
 
@@ -494,7 +507,7 @@ void renderScene(mat4& matrixView, float time, float deltaTime, float alpha)
 	glMultMatrixf((GLfloat*)&m);							// --- DEPRECATED
 }
 
-void prepareCubeMap(float x, float y, float z, float time, float deltaTime, float alpha)
+void prepareCubeMap(float x, float y, float z, float time, float deltaTime, float alpha, GLuint CubeId)
 {
 	// Store the current viewport in a safe place
 	GLint viewport[4];
@@ -538,7 +551,7 @@ void prepareCubeMap(float x, float y, float z, float time, float deltaTime, floa
 
 		// send the image to the cube texture
 		glActiveTexture(GL_TEXTURE1);
-		glBindTexture(GL_TEXTURE_CUBE_MAP, idTexCube);
+		glBindTexture(GL_TEXTURE_CUBE_MAP, CubeId);
 		glCopyTexImage2D(GL_TEXTURE_CUBE_MAP_POSITIVE_X + i, 0, GL_RGB8, 0, 0, 256, 256, 0);
 	}
 	// restore the matrixView, viewport and projection
@@ -569,8 +582,6 @@ void onRender()
 	omega -= alpha * 0.05f * deltaTime; // Hooke's law: acceleration proportional to swing
 	alpha += omega * deltaTime * 50; // motion equation: swing += velocity * delta-time
 
-	prepareCubeMap(-3.0f, 10.0f, 0.0f, time, deltaTime, alpha);
-
 	// setup the View Matrix (camera)
 	_vel = clamp(_vel + _acc * deltaTime, -vec3(maxspeed), vec3(maxspeed));
 	float pitch = getPitch(matrixView);
@@ -586,7 +597,13 @@ void onRender()
 	// render the scene objects
 	renderScene(matrixView, time, deltaTime, alpha);
 
+	prepareCubeMap(-3.0f, 10.0f, 0.0f, time, deltaTime, alpha, idTexCube);
 	vaseRender(matrixView, time, deltaTime, alpha);
+
+	prepareCubeMap(3.0f, 8.0f, 0.0f, time, deltaTime, alpha, idTexTeapot);
+	teapotRender(matrixView, time, deltaTime, alpha);
+
+	
 
 	// essential for double-buffering technique
 	glutSwapBuffers();
