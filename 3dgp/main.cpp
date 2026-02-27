@@ -213,12 +213,34 @@ bool init()
 	return true;
 }
 
-void renderScene(mat4& matrixView, float time, float deltaTime)
+void vaseRender(mat4 matrixView, float time, float deltaTime)
+{
+	// setup materials - blue
+
+	program.sendUniform("materialDiffuse", vec3(0, 0.1f, 0.3f));
+
+	glBindTexture(GL_TEXTURE_CUBE_MAP, idTexCube);
+	glActiveTexture(GL_TEXTURE1);
+	program.sendUniform("reflectionPower", 1.0f);
+	program.sendUniform("textureCubeMap", 1);
+
+	// vase
+	mat4 m = matrixView;
+	m = translate(m, vec3(-3.0f, 6.15f, 0.0f));
+	m = rotate(m, radians(180.f), vec3(0.0f, 1.0f, 0.0f));
+	m = scale(m, vec3(0.4f, 0.4f, 0.4f));
+	vase.render(m);
+
+	glActiveTexture(GL_TEXTURE0);
+	program.sendUniform("reflectionPower", 0.0);
+}
+
+void renderScene(mat4& matrixView, float time, float deltaTime, float alpha)
 {
 	program.sendUniform("texture0", 0);
 	
 	//cube map setup?
-	program.sendUniform("textureCubeMap", 1);
+	program.sendUniform("textureCubeMap", 0);
 
 	//"dont do cube map"
 	glActiveTexture(GL_TEXTURE0);
@@ -354,13 +376,6 @@ void renderScene(mat4& matrixView, float time, float deltaTime)
 
 	glDisableClientState(GL_VERTEX_ARRAY);
 	glDisableClientState(GL_NORMAL_ARRAY);
-	
-	// Pendulum mechanics for ceiling lamp
-	static float alpha = 0; // angular position (swing)
-	static float omega = 0.7f; // angular velocity
-	deltaTime = glm::min(deltaTime, 0.2f); // remove time distortions (longer than 0.2s)
-	omega -= alpha * 0.05f * deltaTime; // Hooke's law: acceleration proportional to swing
-	alpha += omega * deltaTime * 50; // motion equation: swing += velocity * delta-time
 
 	// setup materials - black
 
@@ -378,76 +393,6 @@ void renderScene(mat4& matrixView, float time, float deltaTime)
 	m = scale(m, vec3(0.05f, 0.05f, 0.05f));
 	ceilingLamp.render(m);
 
-	// setup materials - blue
-
-	program.sendUniform("materialDiffuse", vec3(0.0f, 0.2f, 0.8f));
-
-	glBindTexture(GL_TEXTURE_CUBE_MAP, idTexCube);
-	glActiveTexture(GL_TEXTURE1);
-	program.sendUniform("reflectionPower", 1.0);
-
-	void prepareCubeMap(float x, float y, float z, float time, float deltaTime)
-	{
-		// Store the current viewport in a safe place
-		GLint viewport[4];
-		glGetIntegerv(GL_VIEWPORT, viewport);
-		int w = viewport[2];
-		int h = viewport[3];
-
-		// setup the viewport to 256x256, 90 degrees FoV (Field of View)
-		glViewport(0, 0, 256, 256);
-		program.sendUniform("matrixProjection", perspective(radians(90.f), 1.0f, 0.02f, 1000.0f));
-
-		// render environment 6 times
-		program.sendUniform("reflectionPower", 0.0);
-		for (int i = 0; i < 6; ++i)
-		{
-			// clear background
-			glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
-
-			// setup the camera
-			const GLfloat ROTATION[6][6] =
-			{	// at              up
-				{ 1.0, 0.0, 0.0,   0.0, -1.0, 0.0 },  // pos x
-				{ -1.0, 0.0, 0.0,  0.0, -1.0, 0.0 },  // neg x
-				{ 0.0, 1.0, 0.0,   0.0, 0.0, 1.0 },   // pos y
-				{ 0.0, -1.0, 0.0,  0.0, 0.0, -1.0 },  // neg y
-				{ 0.0, 0.0, 1.0,   0.0, -1.0, 0.0 },  // poz z
-				{ 0.0, 0.0, -1.0,  0.0, -1.0, 0.0 }   // neg z
-			};
-			mat4 matrixView2 = lookAt(
-				vec3(x, y, z),
-				vec3(x + ROTATION[i][0], y + ROTATION[i][1], z + ROTATION[i][2]),
-				vec3(ROTATION[i][3], ROTATION[i][4], ROTATION[i][5]));
-
-			// send the View Matrix
-			program.sendUniform("matrixView", matrixView);
-
-			// render scene objects - all but the reflective one
-			glActiveTexture(GL_TEXTURE0);
-			renderScene(matrixView2, time, deltaTime);
-
-			// send the image to the cube texture
-			glActiveTexture(GL_TEXTURE1);
-			glBindTexture(GL_TEXTURE_CUBE_MAP, idTexCube);
-			glCopyTexImage2D(GL_TEXTURE_CUBE_MAP_POSITIVE_X + i, 0, GL_RGB8, 0, 0, 256, 256, 0);
-		}
-		// restore the matrixView, viewport and projection
-		void onReshape(int w, int h);
-		onReshape(w, h);
-	}
-
-
-	// vase
-	m = matrixView;
-	m = translate(m, vec3(-3.0f, 6.15f, 0.0f));
-	m = rotate(m, radians(180.f), vec3(0.0f, 1.0f, 0.0f));
-	m = scale(m, vec3(0.4f, 0.4f, 0.4f));
-	vase.render(m);
-
-	glActiveTexture(GL_TEXTURE0);
-	program.sendUniform("reflectionPower", 0.0);
-	
 	// setup materials - green
 
 	program.sendUniform("materialDiffuse", vec3(0.2f, 0.8f, 0.2f));
@@ -518,6 +463,57 @@ void renderScene(mat4& matrixView, float time, float deltaTime)
 	glMultMatrixf((GLfloat*)&m);							// --- DEPRECATED
 }
 
+void prepareCubeMap(float x, float y, float z, float time, float deltaTime, float alpha)
+{
+	// Store the current viewport in a safe place
+	GLint viewport[4];
+	glGetIntegerv(GL_VIEWPORT, viewport);
+	int w = viewport[2];
+	int h = viewport[3];
+
+	// setup the viewport to 256x256, 90 degrees FoV (Field of View)
+	glViewport(0, 0, 256, 256);
+	program.sendUniform("matrixProjection", perspective(radians(90.f), 1.0f, 0.02f, 1000.0f));
+
+	// render environment 6 times
+	program.sendUniform("reflectionPower", 0.0);
+	for (int i = 0; i < 6; ++i)
+	{
+		// clear background
+		glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
+
+		// setup the camera
+		const GLfloat ROTATION[6][6] =
+		{	// at              up
+			{ 1.0, 0.0, 0.0,   0.0, -1.0, 0.0 },  // pos x
+			{ -1.0, 0.0, 0.0,  0.0, -1.0, 0.0 },  // neg x
+			{ 0.0, 1.0, 0.0,   0.0, 0.0, 1.0 },   // pos y
+			{ 0.0, -1.0, 0.0,  0.0, 0.0, -1.0 },  // neg y
+			{ 0.0, 0.0, 1.0,   0.0, -1.0, 0.0 },  // poz z
+			{ 0.0, 0.0, -1.0,  0.0, -1.0, 0.0 }   // neg z
+		};
+		mat4 matrixView2 = lookAt(
+			vec3(x, y, z),
+			vec3(x + ROTATION[i][0], y + ROTATION[i][1], z + ROTATION[i][2]),
+			vec3(ROTATION[i][3], ROTATION[i][4], ROTATION[i][5]));
+
+		// send the View Matrix
+		program.sendUniform("matrixView", matrixView);
+
+		// render scene objects - all but the reflective one
+		glActiveTexture(GL_TEXTURE0);
+		renderScene(matrixView2, time, deltaTime, alpha);
+
+		// send the image to the cube texture
+		glActiveTexture(GL_TEXTURE1);
+		glBindTexture(GL_TEXTURE_CUBE_MAP, idTexCube);
+		glCopyTexImage2D(GL_TEXTURE_CUBE_MAP_POSITIVE_X + i, 0, GL_RGB8, 0, 0, 256, 256, 0);
+	}
+	// restore the matrixView, viewport and projection
+	void onReshape(int w, int h);
+	onReshape(w, h);
+}
+
 void onRender()
 {
 	// these variables control time & animation
@@ -526,9 +522,6 @@ void onRender()
 	float deltaTime = time - prev;						// time since last frame
 	prev = time;										// framerate is 1/deltaTime
 
-	// clear screen and buffers
-	glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
-
 	//rotate chicken
 	rotation += 45 * deltaTime;
 	if (redValue > 1) redGoingUp = false;
@@ -536,6 +529,13 @@ void onRender()
 
 	if (redGoingUp) redValue += 1 * deltaTime;
 	else if (!redGoingUp) redValue -= 1 * deltaTime;
+
+	// Pendulum mechanics for ceiling lamp
+	static float alpha = 0; // angular position (swing)
+	static float omega = 0.7f; // angular velocity
+	deltaTime = glm::min(deltaTime, 0.2f); // remove time distortions (longer than 0.2s)
+	omega -= alpha * 0.05f * deltaTime; // Hooke's law: acceleration proportional to swing
+	alpha += omega * deltaTime * 50; // motion equation: swing += velocity * delta-time
 
 	// setup the View Matrix (camera)
 	_vel = clamp(_vel + _acc * deltaTime, -vec3(maxspeed), vec3(maxspeed));
@@ -546,8 +546,15 @@ void onRender()
 		-pitch, vec3(1, 0, 0))	// switch the pitch on
 		* matrixView;
 
+	prepareCubeMap(-3.0f, 10.0f, 0.0f, time, deltaTime, alpha);
+
+	// clear screen and buffers
+	glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
+
 	// render the scene objects
-	renderScene(matrixView, time, deltaTime);
+	renderScene(matrixView, time, deltaTime, alpha);
+
+	vaseRender(matrixView, time, deltaTime);
 
 	// essential for double-buffering technique
 	glutSwapBuffers();

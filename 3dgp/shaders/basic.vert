@@ -109,7 +109,7 @@ void main(void)
 	texCoord0 = aTexCoord;
 
 	//calculate cube map reflection vector
-	texCoordCubeMap = -inverse(mat3(matrixView)) * reflect(position.xyz, normal);
+	texCoordCubeMap = -inverse(mat3(matrixView)) * mix(reflect(position.xyz, normal.xyz), normal.xyz, 0.2);
 
 	// calculate light
 	
