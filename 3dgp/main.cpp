@@ -26,8 +26,7 @@ C3dglBitmap bm;
 
 GLuint idTexCube, idTexTeapot;	// global variable used for cube map
 
-C3dglModel player;			// the boy's name is Aj
-C3dglModel idle;	// additional animations (skinless)
+C3dglModel player, idle, player2, swordIdle, swordAttack;			// the boy's name is Aj // additional animations (skinless)
 
 //texture buffers
 GLuint idTexWood, idTexNone;
@@ -56,6 +55,8 @@ unsigned indices[] = {
   9, 10, 11,	  // side triangle
   12, 13, 14,	  // one of the base triangles
   13, 14, 15 };	  // the other one reuses two out of the three vertices
+
+float blendFactor = 0;
 
 //chicken rotation
 float rotation = 0;
@@ -166,10 +167,18 @@ bool init()
 		GL_RGBA, bm.getWidth(), abs(bm.getHeight()), 0, GL_RGBA, GL_UNSIGNED_BYTE, bm.getBits());
 
 	idle.load("models\\standing idle 01.fbx");
+	swordIdle.load("models\\sword and shield idle.fbx");
+	swordAttack.load("models\\sword and shield slash.fbx");
 
 	player.load("models\\Erika Archer.fbx");
 	player.loadMaterials("models\\");
 	player.loadAnimations(&idle);	// idle animation for female archer Erika
+
+	player2.load("models\\Paladin WProp J Nordstrom.fbx");
+	player2.loadMaterials("models\\");
+	player2.loadAnimations(&swordAttack);
+	player2.loadAnimations(&swordIdle);
+	
 
 	// load textures/ bitmaps
 	bm.load("models/oak.bmp", GL_RGBA);
@@ -434,6 +443,22 @@ void renderScene(mat4& matrixView, float time, float deltaTime, float alpha)
 	m = scale(m, vec3(0.12f, 0.12f, 0.12f));
 	player.render(m);
 
+	std::vector<mat4> swordTransforms;
+	player2.getAnimData(0, time, swordTransforms);
+	std::vector<mat4> idleMatrix = swordTransforms;
+	player2.getAnimData(1, time, swordTransforms);
+	std::vector<mat4> attackingMatrix = swordTransforms;
+	for (int i = 0; i < swordTransforms.size(); i++)
+	{
+		swordTransforms[i] = (1 - blendFactor) * idleMatrix[i] + blendFactor * attackingMatrix[i];
+	}
+	program.sendUniform("bones", &swordTransforms[0], swordTransforms.size());
+	
+	m = matrixView;
+	m = translate(m, vec3(-12.0f, -6.0f, -15.0f));
+	m = scale(m, vec3(0.12f, 0.12f, 0.12f));
+	m = rotate(m, radians(90.0f), vec3(0, 1, 0));
+	player2.render(m);
 
 	// setup materials - yellow
 
@@ -691,6 +716,8 @@ void onKeyDown(unsigned char key, int x, int y)
 	case '1': lamp1On = !lamp1On; redValue = 0.0f; break;
 	case '2': lamp2On = !lamp2On; break;
 	case '3': spotLightOn= !spotLightOn; break;
+	case '4': blendFactor = 1; break;
+	case '5': blendFactor = 0; break;
 	}
 }
 
