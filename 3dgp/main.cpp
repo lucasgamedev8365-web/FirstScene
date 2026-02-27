@@ -26,6 +26,9 @@ C3dglBitmap bm;
 
 GLuint idTexCube;	// global variable used for cube map
 
+C3dglModel player;			// the boy's name is Aj
+C3dglModel idle;	// additional animations (skinless)
+
 //texture buffers
 GLuint idTexWood, idTexNone;
 
@@ -75,6 +78,7 @@ float _fov = 60.f;		// field of view (zoom)
 
 bool init()
 {
+
 	//glut setup
 	glutSetVertexAttribCoord3(program.getAttribLocation("aVertex"));
 	glutSetVertexAttribNormal(program.getAttribLocation("aNormal"));
@@ -119,6 +123,8 @@ bool init()
 	if (!ceilingLamp.load("models\\ceilinglamp.3ds")) return false;
 	room.loadMaterials("models\\LivingRoomObj\\");
 
+
+
 	// Generate 1 buffer name
 	glGenBuffers(1, &buf);
 	// Bind (activate) the buffer
@@ -160,6 +166,11 @@ bool init()
 	bm.load("models\\cube\\bk.png", GL_RGBA); glTexImage2D(GL_TEXTURE_CUBE_MAP_NEGATIVE_Z, 0,
 		GL_RGBA, bm.getWidth(), abs(bm.getHeight()), 0, GL_RGBA, GL_UNSIGNED_BYTE, bm.getBits());
 
+	idle.load("models\\standing idle 01.fbx");
+
+	player.load("models\\Erika Archer.fbx");
+	player.loadMaterials("models\\");
+	player.loadAnimations(&idle);	// idle animation for female archer Erika
 
 	// load textures/ bitmaps
 	bm.load("models/oak.bmp", GL_RGBA);
@@ -302,6 +313,15 @@ void renderScene(mat4& matrixView, float time, float deltaTime)
 	m = scale(m, vec3(0.07f, 0.07f, 0.07f));
 	lamp.render(m);
 	
+	std::vector<mat4> transforms;
+	player.getAnimData(0, time, transforms);
+	program.sendUniform("bones", &transforms[0], transforms.size());
+	m = matrixView;
+	m = translate(m, vec3(5.2, -6.0f, -15.0f));
+	m = scale(m, vec3(0.12f, 0.12f, 0.12f));
+	player.render(m);
+
+
 	// setup materials - yellow
 
 	program.sendUniform("materialDiffuse", vec3(1.0f, 1.0f, 0.0f));
